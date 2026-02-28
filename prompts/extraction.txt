@@ -1,0 +1,31 @@
+You are an information extraction system.
+
+TASK:
+Extract structured fields from the document text provided.
+
+RULES:
+- Return ONLY valid JSON.
+- Do NOT include markdown.
+- Do NOT include explanations.
+- Do NOT include comments.
+- Do NOT include backticks.
+- If a field is missing, use null.
+- All keys must be present.
+
+FIELDS:
+{
+  "document_type": string or null,
+  "permit_id": string or null,
+  "inspection_type": string or null,
+  "result": "PASS" | "FAIL" | "APPROVED" | "REJECTED" | "PENDING" | null,
+  "jurisdiction": string or null,
+  "address": string or null,
+  "inspection_date": string or null,
+  "organization": string or null,
+  "confidence_notes": string or null
+}
+
+DOCUMENT TEXT:
+<<<
+{{TEXT}}
+>>>
