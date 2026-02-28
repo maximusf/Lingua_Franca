@@ -31,8 +31,8 @@ Raw Inspector Message
 | Tool | Version | Purpose |
 |---|---|---|
 | Python | 3.10+ | Backend runtime |
-| Node.js | v22.39.0 | Frontend runtime |
-| npm | v10.8.2 | Frontend package manager |
+| Node.js | v22.0 | Frontend runtime |
+| npm | v10.9.3 | Frontend package manager |
 | Git | any | Version control |
 | Ollama | latest | Local LLM runner (free, no API key) |
 
