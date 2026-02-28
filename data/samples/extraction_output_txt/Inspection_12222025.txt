@@ -1,0 +1,13 @@
+FILE: Inspection_12222025.xlsx
+================================================================================
+
+[SHEET] Sheet1
+--------------------------------------------------------------------------------
+			 						
+	Municipality: Aiken County								
+Release Date	Permit #	Address					Release Type	Structure
+Type	Reason For Release
+		Street #	Street Name/City	Lot/Unit	Subdivision	Name			
+2025-12-18 00:00:00	CB25-000372	1124	MT.ARTHUR DRIVE/GRANITEVILLE 			TIMOTHY BARTON	ELEC	POLE	OK FOR POWER
+
+
