@@ -12,6 +12,8 @@ def main():
     # File uploader for Excel files
     excel_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
     
+    
+    
     # File uploader for PDF files
     pdf_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     
@@ -22,3 +24,6 @@ def main():
     if pdf_file is not None:
         st.write("PDF file uploaded successfully!")
         # Here you can add code to process the PDF file and display results
+
+if __name__ == "__main__":
+            main()
