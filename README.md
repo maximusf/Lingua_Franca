@@ -145,49 +145,35 @@ SmartRoute/
     └── frontend-spec.md
 ```
 
-## Installation
+## Getting Started
+
+**1. Clone the repository**
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+git clone https://github.com/maximusf/SmartRoute.git
+cd SmartRoute
+```
+
+**2. Install Python dependencies**
+
+```bash
 pip install -r requirements.txt
 ```
 
-Tesseract must be installed on the system for image OCR:
+**3. Install Ollama**
+
+Follow the instructions for your OS at [https://ollama.com/download](https://ollama.com/download).
+
+**4. Pull and verify the Mistral model**
 
 ```bash
-# Ubuntu/Debian
-sudo apt install tesseract-ocr
-
-# macOS
-brew install tesseract
-
-# Windows — install from https://github.com/tesseract-ocr/tesseract
+ollama run mistral
 ```
 
-## Running
+This will download the model and open an interactive chat. Type `/bye` to exit.
 
-**1. Start Ollama**
-
-```bash
-ollama serve
-ollama pull mistral    # first time only
-```
-
-**2. Launch the app**
+**5. Run the app**
 
 ```bash
-streamlit run app.py
-```
-
-**3. (Optional) Run the backend test harness**
-
-```bash
-streamlit run backend/app.py
-```
-
-**4. (Optional) Batch convert files from the command line**
-
-```bash
-python backend/extract_to_txt.py data/samples --out data/processed_text
+python -m streamlit run app.py
 ```
