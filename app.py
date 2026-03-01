@@ -179,18 +179,32 @@ def main() -> None:
     r1, r2, r3 = st.columns([1, 1, 2])
 
     with r1:
-        st.caption("Urgency")
-        st.text("Rules")
-        render_badge(record["urgency"], URGENCY_COLORS.get(record["urgency"], "#7f8c8d"))
-        st.caption(f"Score: {record['urgency_score']} / 5")
+         st.metric (
+            label = "Urgency",
+            value = record["urgency"],
+            delta = URGENCY_COLORS.get(record["urgency"], "#7f8c8d"),
+            help = f"Predicted urgency based on extracted text. Override if the model is incorrect. Score: {record['urgency_score']} / 5"
+         )
+        # st.text("Urgency")
+        # render_badge(record["urgency"], URGENCY_COLORS.get(record["urgency"], "#7f8c8d"))
+        # st.caption(f"Score: {record['urgency_score']} / 5")
 
     with r2:
-        st.caption("Confidence")
-        st.metric("Score", f"{confidence:.2f}")
+        #Creates the ? for the user to see what confidence means
+        st.metric(
+            label="Confidence",
+            value=f"{confidence:.2f}",
+            help="0–1 certainty score. Below 0.70 triggers human review."
+        )
 
     with r3:
-        st.caption("Routing Destination")
-        st.write(ROUTE_LABELS.get(record["routed_to"], record["routed_to"]))
+        st.metric (
+            label = "Routed To",
+            value = ROUTE_LABELS.get(record["routed_to"], record["routed_to"]),
+            help = "The team or department the record is routed to."
+        )
+        # st.caption("Routing Destination")
+        # st.write(ROUTE_LABELS.get(record["routed_to"], record["routed_to"]))
 
 
 
@@ -201,10 +215,10 @@ def main() -> None:
 
     default_urgency = record["urgency"]
     choice = st.selectbox(
-        "Urgency (you can override)",
+        label="Urgency (you can override)",
         options=URGENCY_OPTIONS,
-        index=URGENCY_OPTIONS.index(default_urgency),
-        format_func=lambda x: URGENCY_LABELS[x],
+        index=URGENCY_OPTIONS.index(record["urgency"]),
+        help="Predicted urgency based on extracted text. Override if the model is incorrect."
     )
 
     record["user_selected_urgency"] = choice
