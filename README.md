@@ -1,5 +1,7 @@
 # SmartRoute
 
+# Teammates: Emmanuel, Chance, Maximus, Myra, Preston
+
 **GridStorm Hacks 2026 @ UofSC**
 
 SmartRoute is a document understanding and routing system built for utility inspection workflows. Upload an inspection email screenshot, an Excel release sheet, or a PDF report — SmartRoute extracts the key fields, scores its own confidence, and routes the record to the right team automatically.
