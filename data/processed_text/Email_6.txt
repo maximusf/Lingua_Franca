@@ -1,16 +1,15 @@
 FILE: Email_6.png
 ================================================================================
 
-[EXTERNAL] Dorchester County: Utility Release Mobile Home First Inspection Dominion
+[EXTERNAL] Dorchester County: Utility Release Mobile Home First Inspection Dominion NAN GH PP
 
-® A@@f§s@corchestercountysc.gov <AMs@dorchestercountysc.gov>
-To: © ReleaseDesk; Ce: O ins s @dorchestercounty.net Vv
+© A s@dorchestercountysc.gov <AMs@dorchestercountysc.gov> Monday, December 22, 2025 at 3:02PM
+To: © ReleaseDesk; Cc: O ins TE s @ dorchestercounty.net Vv
 
 CAUTION! This message was NOT SENT from DOMINION ENERGY
 
-AGH Pe
-
-Monday, December 22, 2025 at 3:02PM
+Are you expecting this message to your DE email? Suspicious? Use PhishAlarm to report the message. Open a browser and type in the name of the trusted website instead of clicking on
+links. DO NOT click links or open attachments until you verify with the sender using a known-good phone number. Never provide your DE password.
 
 Dorchester County Mobile Home First Inspection Inspection approved.
 
@@ -20,7 +19,7 @@ Permit Type: Mobile Home
 
 Permit Category: Manufactured Home Set Up
 
-Address: 1 (aD
+Address: 1 aD
 
 Description: install new 14x76
 
@@ -28,5 +27,5 @@ Inspector:
 
 Contact Name:
 
-Contact Org: Rif Jones dba SCJ Mobile Home Movers
-Contact Phone: 843-79
+Contact Org: Rig Jones dba SC) Mobile Home Movers
+Contact Phone: 843-379

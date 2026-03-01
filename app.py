@@ -79,8 +79,9 @@ def main() -> None:
                     f.write(uploaded_file.getbuffer())
                 st.success(f"Saved {uploaded_file.name} to {save_path}")
 
-        #Register uploaded files in session state
+        # Register uploaded files in session state and set the most-recent uploaded file active
         if user_upload_files:
+            added_file_ids = []
             for f in user_upload_files:
                 file_id = f"{f.name}-{f.size}"  # simple stable key for hackathon
 
@@ -91,6 +92,11 @@ def main() -> None:
                         "raw_text": None,  # raw OCR/parsed text
                         "ui": {"urgency": None, "routed_to": None, "confirmed": False},
                     }
+                    added_file_ids.append(file_id)
+
+            # Make the most-recently-uploaded file the active file so UI updates immediately
+            if added_file_ids:
+                st.session_state["active_file_id"] = added_file_ids[-1]
 
     with tab_text:
         raw_text_input = st.text_area("Paste inspection text here", height=200,
@@ -104,9 +110,11 @@ def main() -> None:
                     "raw_text": raw_text_input.strip(),
                     "ui": {"urgency": None, "routed_to": None, "confirmed": False},
                 }
+                # Make this raw-text entry the active file immediately
+                st.session_state["active_file_id"] = file_id
                 st.success("Text added. Click Run Extraction to process.")
 
-    # ---pick a default active file---
+    # ---pick a default active file if none selected---
     if st.session_state["active_file_id"] is None and len(st.session_state["files"]) > 0:
         st.session_state["active_file_id"] = next(iter(st.session_state["files"]))
 
@@ -179,10 +187,47 @@ def main() -> None:
 
     with col_left:
         st.header("Extracted Information")
-        if active_data and active_data.get("raw_text"):
-            st.text_area("Raw extracted text", value=active_data["raw_text"], height=300, disabled=True)
+
+        # show priority badge + description subheader when the active file has an extracted record
+        if active_data and active_data.get("record"):
+            rec = active_data["record"]
+            # description may be nested or missing; guard defensively
+            description = rec.get("description") or rec.get("desc") or rec.get("details") or "No description available."
+
+            # small local urgency->color map used for badge rendering
+            left_urgency_colors = {
+                "critical": "red",
+                "high": "orange",
+                "medium": "yellow",
+                "low": "grey",
+                "unknown": "grey"
+            }
+            urgency_val = rec.get("urgency", "unknown")
+
+            # Render priority badge and description
+            col_badge, col_desc = st.columns([1, 5])
+            with col_badge:
+                # render_badge expects (label, color)
+                render_badge(urgency_val, left_urgency_colors.get(urgency_val, "grey"))
+            with col_desc:
+                st.subheader("Description")
+                # Use markdown so multi-line descriptions render nicely
+                st.markdown(description)
+
+            st.markdown("---")  # small divider before raw text
+
+            # show raw extracted text (read-only)
+            if active_data.get("raw_text"):
+                st.text_area("Raw extracted text", value=active_data["raw_text"], height=220, disabled=True)
+            else:
+                st.text_area("Raw extracted text", value="No raw text available for this file.", height=220, disabled=True)
+
         else:
-            st.text_area("Extracted Information will be displayed here", height=300, disabled=True)
+            # fallback when no record/raw_text present
+            if active_data and active_data.get("raw_text"):
+                st.text_area("Raw extracted text", value=active_data["raw_text"], height=300, disabled=True)
+            else:
+                st.text_area("Extracted Information will be displayed here", height=300, disabled=True)
 
     with col_right:
         st.header("Structured JSON")
