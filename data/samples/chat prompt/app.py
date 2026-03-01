@@ -5,16 +5,15 @@ import json
 import streamlit as st
 
 from pathlib import Path
-from backend.extractor import extract_fields
-from backend.validator import validate
-from backend.urgency import apply_routing
-
 
 from backend.extract_to_txt import (
     dump_image_to_txt,
     dump_xlsx_to_txt,
     dump_pdf_to_txt
 )
+
+
+
 
 
 def get_record_for_ui(raw_input: str) -> dict:
@@ -108,85 +107,28 @@ def main() -> None:
             st.warning("No files uploaded.")
         else:
             results = []
-            extracted_records = []  # list of tuples (filename, record_dict or error_str)
-            with st.spinner("Running extraction and calling Ollama..."):
-                # 1) run your dump_* functions (this is what you already do)
+            with st.spinner("Processing files..."):
                 for p in files:
                     suffix = p.suffix.lower()
                     try:
                         if suffix == ".xlsx":
                             dump_xlsx_to_txt(p, OUT_DIR)
-                            results.append((p.name, "xlsx -> dumped"))
+                            results.append((p.name, "xlsx -> ok"))
                         elif suffix in [".png", ".jpg", ".jpeg"]:
                             dump_image_to_txt(p, OUT_DIR)
-                            results.append((p.name, "image -> dumped"))
+                            results.append((p.name, "image -> ok"))
                         elif suffix == ".pdf":
                             dump_pdf_to_txt(p, OUT_DIR)
-                            results.append((p.name, "pdf -> dumped"))
+                            results.append((p.name, "pdf -> ok"))
                         else:
                             results.append((p.name, "skipped (unknown type)"))
                     except Exception as e:
-                        results.append((p.name, f"DUMP FAILED: {e}"))
-
-                # 2) For each produced .txt in OUT_DIR, run Ollama via extractor.extract_fields
-                txt_files = sorted(OUT_DIR.glob("*.txt"))
-                for t in txt_files:
-                    try:
-                        raw_text = t.read_text(encoding="utf-8")
-                    except Exception as e:
-                        extracted_records.append((t.name, f"READ TXT FAILED: {e}"))
-                        continue
-
-                    # Call the Ollama-backed extractor
-                    try:
-                        llm_extraction = extract_fields(raw_text)  # returns LLMExtraction object per backend/extractor.py
-                        # If it's a Pydantic model or dataclass, convert to dict for display
-                        try:
-                            record_dict = llm_extraction.model_dump(mode="json")  # if Pydantic v2 / pydantic-core
-                        except Exception:
-                            # fallback: try dict()
-                            record_dict = llm_extraction.__dict__ if hasattr(llm_extraction, "__dict__") else dict(llm_extraction)
-                        # Optionally validate / route
-                        try:
-                            validated = validate(llm_extraction, raw_text)
-                            routed = apply_routing(validated)
-                            # routed may be a pydantic model; convert for display
-                            try:
-                                routed_dict = routed.model_dump(mode="json")
-                            except Exception:
-                                routed_dict = getattr(routed, "__dict__", routed)
-                        except Exception:
-                            # if you don't have validator/urgency set up, skip silently
-                            routed_dict = record_dict
-
-                        extracted_records.append((t.name, routed_dict))
-                        results.append((t.name, "extraction -> ok"))
-                    except ConnectionError as ce:
-                        extracted_records.append((t.name, f"OLLM ERROR: {ce}"))
-                        results.append((t.name, f"extraction -> failed (Ollama connection)"))
-                    except ValueError as ve:
-                        extracted_records.append((t.name, f"EXTRACTION ERROR: {ve}"))
-                        results.append((t.name, f"extraction -> failed (parse/validation)"))
-                    except Exception as e:
-                        extracted_records.append((t.name, f"UNEXPECTED ERROR: {e}"))
-                        results.append((t.name, f"extraction -> failed ({e})"))
-
-            # end spinner
-            st.success("Extraction + LLM pass finished.")
-            st.write("Dump results:")
+                        # keep going even if this file failed
+                        results.append((p.name, f"FAILED: {e}"))
+            st.success("Extraction complete.")
+            st.write("Results:")
             for name, status in results:
                 st.write(f"- {name}: {status}")
-
-            # show extracted records (first one prominently; list others)
-            if extracted_records:
-                st.divider()
-                st.header("LLM-extracted Records (from processed .txt files)")
-                for fname, record in extracted_records:
-                    st.subheader(fname)
-                    if isinstance(record, str):
-                        st.error(record)
-                    else:
-                        st.json(record)
     #-----Dummy JSON for testing purposes-------
     dummy_json = {
     "name" : "John Doe",
