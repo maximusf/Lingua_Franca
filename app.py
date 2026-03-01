@@ -31,6 +31,8 @@ def get_record_for_ui(raw_input: str) -> dict:
         # routing/computed
         "urgency": "high",
         "urgency_score": 4,
+        "user_selected_urgency": None, #added for front end user can change
+        "user_override": False,
         "routed_to": "field_ops",
         "confidence_score": 0.82,
         "human_review_flag": False,
@@ -60,6 +62,8 @@ def render_badge(label: str, color: str):
 
 # EXAMPLE 
 def main() -> None:
+    record = get_record_for_ui(raw_input="dummy raw input string")
+
     #set page configuration to be wide
     st.set_page_config(page_title="SmartRoute", layout="wide")
     st.title("SmartRoute: Email and Message Information Extraction")
@@ -112,22 +116,45 @@ def main() -> None:
         st.header("Structured JSON")
 
         #changed to function that'll read from backend later
-        extractedJson = st.json(get_record_for_ui)
+        st.json(record)
+        
        
 
     #-----Routing-------
         
     st.divider()
-    st.header("Routing")
+    # st.header("Routing")
 
     # st.json(dummy_json)
 
 
     # Determine if human review is required based on confidence score and human review flag
-    confidence = float(dummy_json["confidence_score"])
-    human_review_required = (confidence < 0.70) or bool(dummy_json["human_review"])
+    confidence = float(record["confidence_score"])
+    human_review_required = (confidence < 0.70) or bool(record["human_review_flag"])
 
 # Display human review alert if required
+   
+
+
+    #Style the badges based on urgency levels
+    URGENCY_COLORS = {
+        "critical": "red",
+        "high": "orange",
+        "medium": "yellow",
+        "low": "grey"
+    }
+
+    ROUTE_LABELS  = {
+         "field_ops": "Field Operations",
+         "scheduling": "Scheduling",
+         "safety_team": "Safety Team",
+         "maintenance": "Maintenance",
+        "human_review": "Human Review"
+         
+    }
+
+    st.header("Routing")
+
     if human_review_required:
             st.markdown(
             """
@@ -144,96 +171,54 @@ def main() -> None:
             </div>
             """,
             unsafe_allow_html=True,
-        )
+    )
 
-
-    #Style the badges based on urgency levels
-    URGENCY_COLORS = {
-        "critical": "red",
-        "high": "orange",
-        "medium": "yellow",
-        "low": "grey"
-    }
-
-    RoutingDestination = {
-         "field_ops": "Field Operations",
-         "scheduling": "Scheduling",
-         "safety_team": "Safety Team",
-         "maintenance": "Maintenance",
-        "human_review": "Human Review"
-         
-    }
-
-    urgencyScore = extractedJson["urgency_score"]
+    urgencyScore = record["urgency_score"]
 
     #Horizontal Routing Role
     r1, r2, r3 = st.columns([1, 1, 2])
+
     with r1:
-        st.caption("urgencyScore Urgency")
-        render_badge(urgencyScore, URGENCY_COLORS.get(urgencyScore, "grey"))
+        st.caption("Urgency")
+        st.text("Rules")
+        render_badge(record["urgency"], URGENCY_COLORS.get(record["urgency"], "#7f8c8d"))
+        st.caption(f"Score: {record['urgency_score']} / 5")
+
     with r2:
-        st.caption("urgencyScore Urgency")
-        st.metric("Confidence Score", f"{confidence:.2f}")
+        st.caption("Confidence")
+        st.metric("Score", f"{confidence:.2f}")
+
     with r3:
         st.caption("Routing Destination")
-        st.write(", ".join(extractedJson["reasons"]) if extractedJson["reasons"] else "—")
+        st.write(ROUTE_LABELS.get(record["routed_to"], record["routed_to"]))
 
 
-    # if dummy_json["reasons"]: #if reasons exist show them
-    #         st.write(", ".join(dummy_json["reasons"]))
-    # else: #if reasons dont exist put a line
-    #     st.write("—")
 
     # ----- User selection (override) -----
-    urgency_options = ["Critical", "High", "Medium", "Low"]
+    # user override urgency (always allowed)
+    URGENCY_OPTIONS = ["critical", "high", "medium", "low"]
+    URGENCY_LABELS = {"critical":"Critical", "high":"High", "medium":"Medium", "low":"Low"}
 
+    default_urgency = record["urgency"]
+    choice = st.selectbox(
+        "Urgency (you can override)",
+        options=URGENCY_OPTIONS,
+        index=URGENCY_OPTIONS.index(default_urgency),
+        format_func=lambda x: URGENCY_LABELS[x],
+    )
+
+    record["user_selected_urgency"] = choice
+    record["user_override"] = (choice != record["urgency"])
+
+    # allow routing override ONLY if human review
     if human_review_required:
-        selection = st.selectbox(
-            "Select urgency to proceed",
-            options=["Select…"] + urgency_options,
-            index=0,
+        route_choice = st.selectbox(
+            "Route to (required for human review)",
+            options=list(ROUTE_LABELS.keys()),
+            index=list(ROUTE_LABELS.keys()).index(record["routed_to"]),
+            format_func=lambda x: ROUTE_LABELS[x],
         )
-        confirmed = st.checkbox("I confirm this urgency is correct", value=False)
-        can_proceed = (selection != "Select…") and confirmed
-    else:
-        default_index = urgency_options.index(urgencyScore)
-        selection = st.selectbox(
-            "Urgency (you can override)",
-            options=urgency_options,
-            index=default_index,
-        )
-        can_proceed = True
-
-    # Update JSON based on user selection
-    if selection == "Select…":
-        dummy_json["user_selected_urgency"] = None
-    else:
-        dummy_json["user_selected_urgency"] = selection
-
-        # Set user_override to True if user selection differs from urgencyScore urgency
-    dummy_json["user_override"] = (
-        dummy_json["user_selected_urgency"] is not None
-        and dummy_json["user_selected_urgency"] != urgencyScore
-    )
-
-    if human_review_required and not can_proceed:
-        st.warning("Select an urgency and confirm to proceed.")
-        st.button("Confirm & Continue", disabled=True)
-    else:
-        if st.button("Confirm & Continue"):
-            st.success("Selection saved (dummy). Ready to wire to backend later.")
-
-    # ----- Show JSON output -----
-    st.subheader("JSON Output")
-    st.json(dummy_json)
-
-    # Optional: download JSON
-    st.download_button(
-        "Download JSON",
-        data=json.dumps(dummy_json, indent=2),
-        file_name="smartroute_output.json",
-        mime="application/json",
-    )
+        record["routed_to"] = route_choice
 
 
         
