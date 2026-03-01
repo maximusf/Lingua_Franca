@@ -64,86 +64,94 @@ def main() -> None:
     st.title("SmartRoute: Email and Message Information Extraction")
     st.write("Upload your excel files, emails and messages here, and we will extract information.")
 
-    #---File uploaders---
+    #---Input options: file upload or raw text---
+    tab_upload, tab_text = st.tabs(["Upload Files", "Paste Raw Text"])
 
-    # File uploader for Excel files
-    user_upload_files = st.file_uploader("Upload a pdf, jpg, png, or xlsx file", type=["xlsx", "jpg", "png", "pdf", "jpeg"],
-                                         accept_multiple_files=True)
+    with tab_upload:
+        user_upload_files = st.file_uploader("Upload a pdf, jpg, png, or xlsx file", type=["xlsx", "jpg", "png", "pdf", "jpeg"],
+                                             accept_multiple_files=True)
 
-    if user_upload_files is not None:
-        for uploaded_file in user_upload_files:
-            save_path = UPLOAD_DIR / uploaded_file.name
+        if user_upload_files is not None:
+            for uploaded_file in user_upload_files:
+                save_path = UPLOAD_DIR / uploaded_file.name
 
-            with open(save_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            st.success(f"Saved {uploaded_file.name} to {save_path}")
+                with open(save_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success(f"Saved {uploaded_file.name} to {save_path}")
 
-    #Register uploaded files in session state
-    if user_upload_files:
-        for f in user_upload_files:
-            file_id = f"{f.name}-{f.size}"  # simple stable key for hackathon
+        #Register uploaded files in session state
+        if user_upload_files:
+            for f in user_upload_files:
+                file_id = f"{f.name}-{f.size}"  # simple stable key for hackathon
 
+                if file_id not in st.session_state["files"]:
+                    st.session_state["files"][file_id] = {
+                        "meta": {"name": f.name, "type": f.type, "size": f.size},
+                        "record": None,  # will fill after extraction
+                        "raw_text": None,  # raw OCR/parsed text
+                        "ui": {"urgency": None, "routed_to": None, "confirmed": False},
+                    }
+
+    with tab_text:
+        raw_text_input = st.text_area("Paste inspection text here", height=200,
+                                       placeholder="Paste raw inspection email, notes, or OCR output...")
+        if st.button("Submit Text", key="submit_raw_text") and raw_text_input.strip():
+            file_id = f"raw_text-{hash(raw_text_input) & 0xFFFFFFFF}"
             if file_id not in st.session_state["files"]:
                 st.session_state["files"][file_id] = {
-                    "meta": {"name": f.name, "type": f.type, "size": f.size},
-                    "record": None,  # will fill after extraction
-                    "raw_text": None,  # raw OCR/parsed text
+                    "meta": {"name": "Raw Text Input", "type": "text/plain", "size": len(raw_text_input)},
+                    "record": None,
+                    "raw_text": raw_text_input.strip(),
                     "ui": {"urgency": None, "routed_to": None, "confirmed": False},
                 }
+                st.success("Text added. Click Run Extraction to process.")
 
     # ---pick a default active file---
     if st.session_state["active_file_id"] is None and len(st.session_state["files"]) > 0:
         st.session_state["active_file_id"] = next(iter(st.session_state["files"]))
 
     if st.button("Run Extraction"):
-        # Only process files that were uploaded (in session state), not everything in the directory
-        uploaded_names = [
-            file_data["meta"]["name"]
-            for file_data in st.session_state["files"].values()
-        ]
-        if not uploaded_names:
-            st.warning("No files uploaded.")
+        if not st.session_state["files"]:
+            st.warning("No files or text submitted.")
         else:
-            results = []
             with st.spinner("Running extraction and calling Ollama..."):
-                # 1) Dump each uploaded file to .txt
-                for name in uploaded_names:
+                # 1) Dump uploaded files to .txt (skip raw text entries)
+                for file_id, file_data in st.session_state["files"].items():
+                    if file_data.get("raw_text"):
+                        continue  # raw text already has its text, skip dump
+                    name = file_data["meta"]["name"]
                     p = UPLOAD_DIR / name
                     if not p.exists():
-                        results.append((name, "file not found on disk"))
                         continue
                     suffix = p.suffix.lower()
                     try:
                         if suffix == ".xlsx":
                             dump_xlsx_to_txt(p, OUT_DIR)
-                            results.append((p.name, "xlsx -> dumped"))
                         elif suffix in [".png", ".jpg", ".jpeg"]:
                             dump_image_to_txt(p, OUT_DIR)
-                            results.append((p.name, "image -> dumped"))
                         elif suffix == ".pdf":
                             dump_pdf_to_txt(p, OUT_DIR)
-                            results.append((p.name, "pdf -> dumped"))
-                        else:
-                            results.append((p.name, "skipped (unknown type)"))
-                    except Exception as e:
-                        results.append((p.name, f"DUMP FAILED: {e}"))
+                    except Exception:
+                        pass
 
-                # 2) For each uploaded file, find its .txt and run LLM extraction
+                # 2) Run LLM extraction on each entry
                 for file_id, file_data in st.session_state["files"].items():
-                    orig_name = file_data["meta"]["name"]
-                    orig_stem = Path(orig_name).stem
-                    txt_name = f"{safe_name(orig_stem)}.txt"
-                    txt_path = OUT_DIR / txt_name
+                    if file_data.get("record"):
+                        continue  # already extracted
 
-                    if not txt_path.exists():
-                        results.append((orig_name, "extraction -> skipped (no .txt found)"))
-                        continue
-
-                    try:
-                        raw_text = txt_path.read_text(encoding="utf-8")
-                    except Exception as e:
-                        results.append((orig_name, f"READ TXT FAILED: {e}"))
-                        continue
+                    # Get raw text: either already set (raw text input) or read from .txt
+                    raw_text = file_data.get("raw_text")
+                    if not raw_text:
+                        orig_name = file_data["meta"]["name"]
+                        orig_stem = Path(orig_name).stem
+                        txt_name = f"{safe_name(orig_stem)}.txt"
+                        txt_path = OUT_DIR / txt_name
+                        if not txt_path.exists():
+                            continue
+                        try:
+                            raw_text = txt_path.read_text(encoding="utf-8")
+                        except Exception:
+                            continue
 
                     try:
                         llm_extraction = extract_fields(raw_text)
@@ -154,22 +162,12 @@ def main() -> None:
                         except Exception:
                             routed_dict = getattr(routed, "__dict__", {})
 
-                        # Store results in session state for this file
                         file_data["record"] = routed_dict
                         file_data["raw_text"] = raw_text
-                        results.append((orig_name, "extraction -> ok"))
-                    except ConnectionError as ce:
-                        results.append((orig_name, f"extraction -> failed (Ollama connection: {ce})"))
-                    except ValueError as ve:
-                        results.append((orig_name, f"extraction -> failed (parse/validation: {ve})"))
-                    except Exception as e:
-                        results.append((orig_name, f"extraction -> failed ({e})"))
+                    except Exception:
+                        pass
 
-            # end spinner
             st.success("Extraction + LLM pass finished.")
-            st.write("Dump results:")
-            for name, status in results:
-                st.write(f"- **{name}**: {status}")
 
 
     #Columns to display extracted info and structured JSON side by side
