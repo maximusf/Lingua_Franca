@@ -55,6 +55,7 @@ _CATEGORY_RULES: list[tuple[list[str], PermitCategory]] = [
 
     # Temp power — "temp" before "residential" since "res temp electric" has both
     (["temp power", "temp pole", "temp electric", "temp/perm power",
+      "temporary power", "temporary construction pole",
       "rel temp", "200 amp release"],
      PermitCategory.TEMP_POWER),
 
@@ -64,24 +65,26 @@ _CATEGORY_RULES: list[tuple[list[str], PermitCategory]] = [
 
     # Residential — broadest, checked last
     (["residential", "res gas", "res electric", "res elec",
-      "new dwelling", "single family"],
+      "new dwelling", "single family", "addition", "remodel"],
      PermitCategory.RESIDENTIAL),
 ]
 
 
 def classify_permit_category(extraction: LLMExtraction) -> PermitCategory:
-    """Classify permit category from multiple fields via keyword matching."""
-    # Build a search string from all relevant fields
-    parts = [
+    """Classify permit category from permit_category and inspection_type only.
+
+    Description is intentionally excluded — incidental keywords in notes
+    (e.g. "temp power remains active") cause false matches.
+    If neither primary field contains a match, returns UNKNOWN.
+    """
+    primary = " ".join([
         extraction.permit_category or "",
         extraction.inspection_type or "",
-        extraction.description or "",
-    ]
-    search_text = " ".join(parts).lower()
+    ]).lower()
 
     for keywords, category in _CATEGORY_RULES:
         for kw in keywords:
-            if kw in search_text:
+            if kw in primary:
                 return category
 
     return PermitCategory.UNKNOWN
