@@ -132,8 +132,8 @@ def main():
     parser.add_argument("--out", default="output_txt", help="Output folder (created if missing)")
     parser.add_argument(
         "--tesseract",
-        default=r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        help="Full path to tesseract.exe",
+        default=None,
+        help="Full path to tesseract binary (auto-detected if omitted)",
     )
 
     args = parser.parse_args()
@@ -141,9 +141,10 @@ def main():
     in_dir = Path(args.input_dir).expanduser().resolve()
     out_dir = Path(args.out).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Set Tesseract path explicitly (Windows-safe)
-    pytesseract.pytesseract.tesseract_cmd = args.tesseract
+
+    # Only override auto-detected path if explicitly provided
+    if args.tesseract:
+        pytesseract.pytesseract.tesseract_cmd = args.tesseract
 
     if not in_dir.exists() or not in_dir.is_dir():
         raise SystemExit(f"Input directory not found: {in_dir}")
