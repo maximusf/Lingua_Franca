@@ -1,269 +1,191 @@
 # SmartRoute
-Challenge for GridStorm Hacks 2026 @ UofSC
 
-SmartRoute is a Python-based document understanding and routing system for utility inspection records. It takes messy inputs such as raw inspector notes, uploaded images, and Excel exports, converts them into usable text, extracts structured fields, scores confidence, and routes the result to the right downstream team.
+**GridStorm Hacks 2026 @ UofSC**
 
-## Tech Stack
+SmartRoute is a document understanding and routing system built for utility inspection workflows. Upload an inspection email screenshot, an Excel release sheet, or a PDF report — SmartRoute extracts the key fields, scores its own confidence, and routes the record to the right team automatically.
 
-- Python
-- Streamlit
-- Ollama
-- Mistral
-- Pydantic
-- openpyxl
-- PyTesseract
-- Pillow
-- pypdf
+Built for operations teams who currently read these documents manually, figure out what happened, and decide where to send them. SmartRoute does that in seconds.
+
+## How It Works
+
+```text
+Upload file (.xlsx, .png, .jpg, .pdf)
+    |
+    v
+Convert to text (OCR / Excel parsing / PDF extraction)
+    |
+    v
+LLM extracts structured fields (permit #, result, address, etc.)
+    |
+    v
+Validate, normalize, and score confidence
+    |
+    v
+Route to the right team based on urgency rules
+    |
+    v
+Display results with human review override when needed
+```
+
+The user uploads one or more files through the Streamlit UI. Each file is converted to text, sent through the extraction pipeline, and displayed as a structured record with urgency level, routing destination, and confidence score. If confidence is low or critical fields are missing, the system flags the record for human review and lets the user override the routing.
 
 ## The Problem
 
-Inspection-related information does not arrive in one clean format. Teams may receive:
+Inspection records arrive in inconsistent formats — email screenshots, Excel exports, PDFs, scanned forms. Someone has to read each one, figure out the permit number, whether it passed or failed, what type of inspection it was, and then decide which team handles it next. That process is slow, error-prone, and doesn't scale.
 
-- raw text copied from emails or internal notes
-- screenshots or image-based messages
-- Excel exports with important values spread across cells
-- PDFs and other semi-structured documents
+## Why This Approach
 
-That makes routing slow and inconsistent. Someone often has to read the document, figure out what happened, identify the permit or inspection type, determine whether it passed or failed, and then decide where it should go next.
+We considered sentiment analysis (VADER), but inspection records are operational documents, not opinion text. A sentiment score can't tell you whether an inspection should go to scheduling vs. the safety team.
 
-## Our Proposed Solution
+We also considered training a custom NLP model, but that requires labeled training data and infrastructure that isn't realistic for a hackathon.
 
-SmartRoute standardizes this process in Python.
+Instead, we use a local LLM (Mistral via Ollama) for field extraction paired with deterministic routing rules. This gives us:
 
-At a high level, the system:
+- No paid API keys or cloud dependency
+- Fast iteration on prompt quality
+- Reliable extraction using a structured key-value format
+- Rule-based routing that's transparent and auditable
 
-1. accepts text or uploaded files
-2. converts files into machine-readable text when needed
-3. sends the text to a local LLM for field extraction
-4. validates and normalizes the extracted fields
-5. applies deterministic routing and urgency rules
-6. returns a structured record to the frontend
+We tested `phi3:mini` and `phi3` but Mistral performed better on our extraction task — more consistent field output in a parseable format.
 
-For raw text inputs, the project is currently averaging about 90% confidence across extracted records, based on the confidence scoring logic in the validation layer and our test iterations on sample inspection-style inputs.
+## Tech Stack
 
-## Why We Chose This Approach
+| Component | Tool |
+|-----------|------|
+| Frontend | Streamlit |
+| LLM | Ollama + Mistral (local) |
+| Schema validation | Pydantic v2 |
+| OCR | Tesseract + OpenCV preprocessing |
+| Excel parsing | openpyxl |
+| PDF extraction | pypdf |
+| Image handling | Pillow |
 
-Early on, we considered sentiment analysis, including VADER, but the project data is not really a sentiment problem. These inspection records are operational documents, not opinion-heavy user text. What matters is extracting factual fields such as permit number, inspection type, result, address, and contact details. A sentiment score would not reliably tell us whether an inspection should be routed to scheduling, field operations, or human review.
+## Pipeline Breakdown
 
-We also discussed training or fine-tuning an NLP model from scratch, but that was not realistic for the time constraints of a hackathon and would have required more labeled data, more ML infrastructure, and more model-training experience than was practical for this build.
+**`backend/extract_to_txt.py`** — Converts uploaded files to plain text. Images go through OpenCV preprocessing (upscale 2x, grayscale, Otsu threshold) before Tesseract OCR for better text quality.
 
-So we settled on using Ollama with Mistral because it gave us the best balance of:
+**`backend/extractor.py`** — Sends text to Ollama and parses the LLM response into structured fields. Uses a key-value prompt format that's more reliable than asking small models for JSON.
 
-- local/offline execution
-- no paid API dependency
-- fast iteration during development
-- stronger extraction quality on our document style
+**`backend/validator.py`** — Normalizes results (e.g., "pass" -> PASS, "released" -> RELEASED), classifies permit categories, computes a confidence score based on field completeness, and flags records for human review.
 
-We tested `phi3:mini` and `phi3`, but they did not perform as well as Mistral on our extraction task. Mistral was more consistent at returning the fields we needed in a format we could parse and validate.
+**`backend/urgency.py`** — Applies deterministic routing rules. Gas inspections go to the safety team. Electrical releases go to field ops. Failed inspections go to human review. Routine passes go to scheduling.
 
-## Prompt Iteration
+**`backend/schema.py`** — Pydantic models shared across the pipeline (`LLMExtraction`, `InspectionRecord`).
 
-Prompt quality ended up mattering a lot.
+## Evaluation
 
-We improved extraction by iterating on:
+SmartRoute includes a synthetic test harness for measuring pipeline accuracy. Test records go through the same Ollama pipeline as real uploads — extraction, validation, and routing — then get compared against known ground truth.
 
-- stricter field instructions
-- explicit allowed values for `result`
-- requiring every field to appear exactly once
-- forcing nulls instead of freeform commentary
-- moving from looser output expectations toward a predictable key-value format
+### 1. Generate test data
 
-That iteration reduced noisy responses and made parsing more reliable. In practice, the extractor performs best when the model is told exactly which fields to output and how to represent missing values.
-
-## How Data Flows Through the Project
-
-### End-to-End Flow
-
-```text
-Frontend input
-    ↓
-Text parser / OCR layer
-    ↓
-LLM extraction
-    ↓
-Validation and normalization
-    ↓
-Urgency and routing rules
-    ↓
-Structured JSON returned to the frontend
+```bash
+python tests/generate_test_data.py --count 25     # 25, 50, or 100 records
 ```
 
-### Current Repository Flows
+Creates realistic inspection documents across 6 template styles (county emails, eTRAKiT forms, PDF reports, spreadsheets, etc.) with file types spread across PNG, JPG, JPEG, PDF, and XLSX. About 20% include simulated OCR noise and 15% have missing critical fields. Ground truth is saved to `data/synthetic/ground_truth.json`.
 
-There are currently two app entrypoints in the repo.
+### 2. Run evaluation
 
-#### 1. Root `app.py`
-
-This Streamlit app is the document ingestion and conversion flow.
-
-```text
-User uploads .xlsx / .jpg / .png / .pdf
-    ↓
-Files are saved into `data/samples/`
-    ↓
-`backend/extract_to_txt.py` converts each file into text
-    ↓
-Output `.txt` files are written into `data/processed_text/`
-    ↓
-Frontend displays extraction status
+```bash
+python tests/evaluate.py --label "baseline"
 ```
 
-This flow currently handles:
+Sends every test record through the full pipeline (Ollama must be running) and compares output to ground truth. The `--label` flag tags the run so you can track changes over time. Outputs:
 
-- Excel files with `openpyxl`
-- images with OCR through `pytesseract`
-- PDFs with `pypdf`
+- `data/synthetic/metrics.json` — per-field accuracy, routing accuracy, accuracy by file type, human review precision/recall, confidence calibration
+- `data/synthetic/results.json` — detailed per-record comparison (expected vs. actual for every field)
+- `data/synthetic/history.json` — appended after each run, stores a snapshot of key metrics with the label and timestamp
 
-For Excel, the project uses `openpyxl` to read raw cell contents sheet by sheet and flatten them into text. If you meant "pyxel", the actual library in the codebase is `openpyxl`.
+### 3. Generate charts
 
-For images, the project uses `pytesseract` with OCR to extract machine-readable text from `.png`, `.jpg`, and `.jpeg` inputs.
-
-#### 2. `backend/app.py`
-
-This Streamlit app is the structured extraction pipeline test harness.
-
-```text
-User provides raw text, `.xlsx`, or image
-    ↓
-Input is converted into raw text
-    ↓
-`backend/extractor.py` sends text to Ollama using Mistral
-    ↓
-`backend/validator.py` normalizes and scores the result
-    ↓
-`backend/urgency.py` assigns urgency and routing
-    ↓
-Structured record is displayed in the frontend
+```bash
+python tests/visualize.py
 ```
 
-This is the flow that best represents the intended SmartRoute pipeline today.
+Reads `metrics.json` and `history.json` and produces PNG charts in `data/synthetic/charts/`:
 
-## Backend Pipeline Breakdown
+- **Accuracy by file type** — bar chart comparing extraction and routing accuracy across PNG, JPG, PDF, XLSX
+- **Per-field accuracy** — horizontal bar chart showing which extracted fields are strongest/weakest, color-coded by performance tier
+- **Accuracy over iterations** — line chart tracking improvement across labeled runs (needs 2+ evaluation runs to be useful; with a single run it just shows one data point)
 
-### `backend/extract_to_txt.py`
+### 4. Clean up
 
-Responsible for file-to-text conversion.
+```bash
+python tests/generate_test_data.py --clean
+```
 
-- `dump_xlsx_to_txt()` reads Excel workbooks and writes text files
-- `dump_image_to_txt()` runs OCR on image files
-- `dump_pdf_to_txt()` extracts text from PDFs
-
-### `backend/extractor.py`
-
-Responsible for LLM-based field extraction.
-
-- sends raw text to Ollama
-- uses the `mistral` model
-- expects a consistent key-value response
-- parses the response into a typed extraction object
-
-### `backend/validator.py`
-
-Responsible for validation and normalization.
-
-- normalizes results such as `pass`, `approved`, or `fail`
-- classifies permit categories
-- computes confidence score
-- flags records for human review when needed
-
-### `backend/urgency.py`
-
-Responsible for deterministic routing logic.
-
-- applies urgency rules
-- maps records to destinations such as `field_ops`, `scheduling`, or `human_review`
-
-### `backend/schema.py`
-
-Defines the shared Pydantic models used throughout the system.
+Deletes all generated test data, results, metrics, and charts.
 
 ## Repository Structure
 
 ```text
 SmartRoute/
-├── README.md
-├── LICENSE
+├── app.py                          # Streamlit frontend (main entry point)
 ├── requirements.txt
-├── app.py
 ├── backend/
-│   ├── app.py
-│   ├── extract_to_txt.py
-│   ├── extractor.py
-│   ├── validator.py
-│   ├── urgency.py
-│   └── schema.py
+│   ├── app.py                      # Backend pipeline test harness
+│   ├── extract_to_txt.py           # File-to-text conversion (OCR, Excel, PDF)
+│   ├── extractor.py                # LLM field extraction via Ollama
+│   ├── validator.py                # Normalization, confidence scoring, review flags
+│   ├── urgency.py                  # Deterministic routing rules
+│   └── schema.py                   # Pydantic models
+├── tests/
+│   ├── generate_test_data.py       # Synthetic test data generator
+│   ├── evaluate.py                 # Pipeline accuracy evaluation
+│   └── visualize.py                # Matplotlib chart generation
+├── data/
+│   ├── samples/                    # Uploaded files
+│   ├── processed_text/             # Converted .txt files
+│   └── synthetic/                  # Test data and metrics
 ├── prompts/
 │   └── extraction.txt
-├── docs/
-│   └── frontend-spec.md
-└── data/
-    ├── samples/
-    └── processed_text/
+└── docs/
+    └── frontend-spec.md
 ```
-
-## What Is Working Now
-
-- raw text can be passed through the structured extraction pipeline
-- images can be converted to text with OCR
-- Excel files can be converted to text from worksheet cell contents
-- PDFs can be converted to text in the conversion flow
-- extracted records are validated, scored, and routed
-
-## Current Limitations
-
-- the root `app.py` conversion flow is not fully wired into the structured backend pipeline yet
-- the root frontend still contains placeholder JSON for some display sections
-- PDF support exists in the conversion layer, but not yet in the structured Streamlit pipeline UI
 
 ## Installation
 
-Create and activate a virtual environment, then install dependencies:
-
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-On Windows:
+Tesseract must be installed on the system for image OCR:
 
 ```bash
-.venv\Scripts\activate
-pip install -r requirements.txt
+# Ubuntu/Debian
+sudo apt install tesseract-ocr
+
+# macOS
+brew install tesseract
+
+# Windows — install from https://github.com/tesseract-ocr/tesseract
 ```
 
-## Running the Project
+## Running
 
-### 1. Start Ollama
+**1. Start Ollama**
 
 ```bash
 ollama serve
+ollama pull mistral    # first time only
 ```
 
-In another terminal, pull Mistral if you do not already have it:
+**2. Launch the app**
 
 ```bash
-ollama pull mistral
+streamlit run app.py
 ```
 
-### 2. Run the frontend conversion app
+**3. (Optional) Run the backend test harness**
 
 ```bash
-python -m streamlit run app.py
+streamlit run backend/app.py
 ```
 
-### 3. Run the backend pipeline app
-
-```bash
-python -m streamlit run backend/app.py
-```
-
-### 4. Optional: run the batch text extraction script directly
+**4. (Optional) Batch convert files from the command line**
 
 ```bash
 python backend/extract_to_txt.py data/samples --out data/processed_text
 ```
-
-## Summary
-
-SmartRoute is a Python hackathon project focused on turning messy inspection documents into structured operational records. Instead of using sentiment analysis or attempting to build a custom NLP model from scratch, the project uses local LLM extraction with Ollama and Mistral, paired with OCR, Excel parsing, validation, and deterministic routing rules. The result is a practical pipeline that works well on raw text today and can be extended into a single unified frontend/backend flow.

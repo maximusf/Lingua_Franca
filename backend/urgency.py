@@ -63,7 +63,7 @@ def _rule_electrical_release(r: InspectionRecord) -> tuple[UrgencyLevel, int, Ro
     ])
 
     if is_electrical:
-        if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED):
+        if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED, InspectionResult.RELEASED):
             return UrgencyLevel.HIGH, 4, RoutingDestination.FIELD_OPS
         # Electrical but not yet passed — still needs attention
         return UrgencyLevel.HIGH, 4, RoutingDestination.FIELD_OPS
@@ -87,7 +87,7 @@ def _rule_fail(r: InspectionRecord) -> tuple[UrgencyLevel, int, RoutingDestinati
 def _rule_mobile_home(r: InspectionRecord) -> tuple[UrgencyLevel, int, RoutingDestination] | None:
     """Mobile home inspections with pass → scheduling."""
     if r.permit_category == PermitCategory.MOBILE_HOME:
-        if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED):
+        if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED, InspectionResult.RELEASED):
             return UrgencyLevel.LOW, 2, RoutingDestination.SCHEDULING
         return UrgencyLevel.MEDIUM, 3, RoutingDestination.HUMAN_REVIEW
     return None
@@ -95,7 +95,7 @@ def _rule_mobile_home(r: InspectionRecord) -> tuple[UrgencyLevel, int, RoutingDe
 
 def _rule_routine_pass(r: InspectionRecord) -> tuple[UrgencyLevel, int, RoutingDestination] | None:
     """Routine pass or approval → scheduling, low urgency."""
-    if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED):
+    if r.result in (InspectionResult.PASS_, InspectionResult.APPROVED, InspectionResult.RELEASED):
         return UrgencyLevel.LOW, 1, RoutingDestination.SCHEDULING
     return None
 

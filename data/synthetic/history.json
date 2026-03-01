@@ -1,0 +1,35 @@
+[
+  {
+    "timestamp": "2026-03-01T05:05:27",
+    "label": "baseline",
+    "total_records": 25,
+    "successful": 25,
+    "perfect_extraction_rate": 0.24,
+    "perfect_routing_rate": 0.8,
+    "human_review_precision": 1.0,
+    "human_review_recall": 1.0,
+    "accuracy_by_file_type": {
+      "jpg": {
+        "count": 8,
+        "extraction_accuracy": 0.0,
+        "routing_accuracy": 0.875
+      },
+      "pdf": {
+        "count": 5,
+        "extraction_accuracy": 1.0,
+        "routing_accuracy": 1.0
+      },
+      "png": {
+        "count": 8,
+        "extraction_accuracy": 0.125,
+        "routing_accuracy": 0.75
+      },
+      "xlsx": {
+        "count": 4,
+        "extraction_accuracy": 0.0,
+        "routing_accuracy": 0.5
+      }
+    },
+    "avg_time_per_record_s": 3.09
+  }
+]

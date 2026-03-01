@@ -29,6 +29,8 @@ class InspectionResult(str, Enum):
     # for cases where "approved" and "rejected" are used instead of "pass/fail"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED" 
+    # for utility release notifications (no pass/fail, just a release)
+    RELEASED = "RELEASED"
     # for inspections that are not yet completed or have ambiguous results
     PENDING = "PENDING"
     # fallback for unrecognized or missing results

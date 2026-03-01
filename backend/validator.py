@@ -30,6 +30,8 @@ _RESULT_MAP: dict[str, InspectionResult] = {
     "approved": InspectionResult.APPROVED,
     "rejected": InspectionResult.REJECTED,
     "denied": InspectionResult.REJECTED,
+    "released": InspectionResult.RELEASED,
+    "release": InspectionResult.RELEASED,
     "pending": InspectionResult.PENDING,
 }
 
