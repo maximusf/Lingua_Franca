@@ -12,7 +12,7 @@ Converts messy inspector emails, texts, and portal exports into clean structured
 ```
 Raw Inspector Message
         ↓
-  [LLM Extraction]     ← Ollama (llama3, runs locally, free)
+  [LLM Extraction]     ← Ollama + Mistral (runs locally, free)
         ↓
   [Validation Layer]   ← Normalizes fields, catches bad LLM output
         ↓
@@ -37,15 +37,15 @@ Raw Inspector Message
 ### Python Packages (`requirements.txt`)
 | Package | Version | Purpose |
 |---|---|---|
-| streamlit | 1.40.0 | UI dashboard |
-| pydantic | 2.8.2 | Data validation and schema enforcement |
-| httpx | 0.27.0 | HTTP client to talk to Ollama |
-| python-dotenv | 1.0.1 | Load environment variables from .env |
+| streamlit | >=1.40.0 | UI dashboard |
+| pydantic | >=2.8.0 | Data validation and schema enforcement |
+| requests | >=2.28.0 | HTTP client to talk to Ollama |
+| openpyxl | >=3.1.0 | Excel file parsing (.xlsx) |
 
 ### LLM (runs locally via Ollama — no account or API key needed)
 | Model | Size | Purpose |
 |---|---|---|
-| `llama3` | ~4.7 GB | Primary extraction model |
+| `mistral` | ~4.4 GB | Primary extraction model (Mistral 7B) |
 
 ---
 
@@ -54,18 +54,20 @@ Raw Inspector Message
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/smartroute.git
-cd smartroute
+git clone https://github.com/maximusf/SmartRoute.git
+cd SmartRoute
 ```
 
 ### 2. Install Ollama and pull the model
 
 ```bash
-# Install Ollama (Linux)
+# Install Ollama
+# Linux/Mac:
 curl -fsSL https://ollama.com/install.sh | sh
+# Windows: download from https://ollama.com/download
 
-# Pull the model (~4.7 GB — do this on good WiFi before the hackathon)
-ollama pull llama3
+# Pull the model (~4.4 GB — do this on good WiFi before the hackathon)
+ollama pull mistral
 ```
 
 Ollama runs at `http://localhost:11434` by default. No account or API key needed.
@@ -73,8 +75,9 @@ Ollama runs at `http://localhost:11434` by default. No account or API key needed
 ### 3. Set up Python environment
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate        # Linux/Mac
+# .venv\Scripts\activate         # Windows
 pip install -r requirements.txt
 ```
 
@@ -85,7 +88,7 @@ You need **two terminals**:
 | Terminal | Command | What it does |
 |---|---|---|
 | 1 | `ollama serve` | Runs the local LLM |
-| 2 | `source venv/bin/activate && streamlit run app.py` | Runs the full app |
+| 2 | `source .venv/bin/activate && streamlit run app.py` | Runs the full app |
 
 App opens automatically at `http://localhost:8501`
 
@@ -116,20 +119,20 @@ Three pre-built scenarios load with one click in the UI:
 ## File Structure
 
 ```
-smartroute/
+SmartRoute/
 ├── README.md
-├── .gitignore
+├── .gitIgnore
 ├── requirements.txt          ← pip install -r requirements.txt
 ├── app.py                    ← Streamlit UI (entire frontend)
 ├── backend/
-│   ├── schema.py             ← All Pydantic data models
-│   ├── extractor.py          ← Calls Ollama, parses JSON response
-│   ├── validator.py          ← Normalizes fields, triggers review flags
-│   └── urgency.py            ← Urgency scoring + routing logic
+│   ├── schema.py             ← All Pydantic data models (4 enums + 2 models)
+│   ├── extractor.py          ← Calls Ollama/Mistral, parses JSON response
+│   ├── validator.py          ← Normalizes fields, scores confidence, triggers review flags
+│   └── urgency.py            ← Urgency scoring + routing rules engine
 ├── prompts/
-│   └── extraction.txt        ← LLM prompt template (tune this)
+│   └── extraction.txt        ← LLM prompt template (12 fields, strict JSON output)
 └── data/
-    ├── samples/              ← Provided example emails
+    ├── samples/              ← Provided example emails (8 PNGs + 2 XLSX)
     └── synthetic/            ← Generated test messages
 ```
 
@@ -137,18 +140,27 @@ smartroute/
 
 ## Output Schema
 
+Every processed message produces a record with these fields:
+
 ```json
 {
-  "incident_id": "uuid",
-  "timestamp": "ISO8601",
-  "raw_input": "string",
+  "incident_id": "uuid (auto-generated)",
+  "timestamp": "ISO8601 (auto-generated)",
+  "raw_input": "string (original message text)",
+
   "permit_number": "string | null",
   "inspection_type": "string | null",
-  "result": "PASS | FAIL | APPROVED | PENDING | UNKNOWN",
+  "result": "PASS | FAIL | APPROVED | REJECTED | PENDING | UNKNOWN",
   "permit_category": "residential | commercial | mobile_home | temp_power | accessory_structure | unknown",
-  "address_raw": "string | null",
-  "address_normalized": "string | null",
+  "site_address": "string | null",
   "county": "string | null",
+  "inspection_date": "string | null",
+  "description": "string | null",
+  "contact_name": "string | null",
+  "contact_phone": "string | null",
+  "contact_email": "string | null",
+  "inspector": "string | null",
+
   "urgency": "critical | high | medium | low",
   "urgency_score": "1-5",
   "routed_to": "field_ops | scheduling | safety_team | maintenance | human_review",
@@ -157,3 +169,17 @@ smartroute/
   "review_reason": "string | null"
 }
 ```
+
+---
+
+## Routing Rules
+
+| Condition | Urgency | Score | Routed To |
+|---|---|---|---|
+| Gas/safety + FAIL | Critical | 5 | safety_team |
+| Gas/safety (any result) | High | 4 | safety_team |
+| Electrical release | High | 4 | field_ops |
+| Missing/unknown result | Medium | 3 | human_review |
+| Non-electrical FAIL | Medium | 3 | human_review |
+| Mobile home pass | Low | 2 | scheduling |
+| Routine pass/approval | Low | 1 | scheduling |
