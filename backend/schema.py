@@ -39,12 +39,12 @@ class InspectionResult(str, Enum):
 class PermitCategory(str, Enum):
     """
     Derived from real permit data seen in Dominion Energy samples:
-      - Residential      ← RES GAS TEST, RES TEMP ELECTRIC, Residential
-      - Commercial       ← Commercial inspections
-      - Mobile Home      ← Mobile Home, MH-PERMANENT SERVICE, Manufactured Home Set Up
-      - Temp Power       ← Temp Power Pole, OK FOR TEMP/PERM POWER, REL TEMP ELECTRIC
-      - Accessory Structure ← Res Accessory Structure, Detached Garage
-      - Unknown          ← fallback
+      - Residential:            RES GAS TEST, RES TEMP ELECTRIC, Residential
+      - Commercial:             Commercial inspections
+      - Mobile Home:            Mobile Home, MH-PERMANENT SERVICE, Manufactured Home Set Up
+      - Temp Power:             Temp Power Pole, OK FOR TEMP/PERM POWER, REL TEMP ELECTRIC
+      - Accessory Structure:    Res Accessory Structure, Detached Garage
+      - Unknown:                fallback
     """
     RESIDENTIAL = "residential"
     COMMERCIAL = "commercial"
