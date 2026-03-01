@@ -50,7 +50,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-    st.set_page_config(page_title="SmartRoute", layout="wide")
+    st.set_page_config(page_title="Lingua Franca", layout="wide")
 
     # Initialize session state for uploaded files and active file selection
     if "files" not in st.session_state:
@@ -61,7 +61,7 @@ def main() -> None:
         st.session_state["active_file_id"] = None
 
     st.image(logo_path, width=150)
-    st.title("SmartRoute: Email and Message Information Extraction")
+    st.title("Lingua Franca: Email and Message Information Extraction")
     st.write("Upload your excel files, emails and messages here, and we will extract information.")
 
     #---Input options: file upload or raw text---
