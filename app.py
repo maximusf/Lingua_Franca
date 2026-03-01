@@ -4,6 +4,18 @@
 import json
 import streamlit as st
 
+from pathlib import Path
+
+from backend.extract_to_txt import (
+    dump_image_to_txt,
+    dump_xlsx_to_txt,
+    dump_pdf_to_txt
+)
+
+
+
+
+
 def get_record_for_ui(raw_input: str) -> dict:
     # TODO later: call backend -> return InspectionRecord JSON
 
@@ -61,6 +73,12 @@ def render_badge(label: str, color: str):
 # EXAMPLE 
 def main() -> None:
     #set page configuration to be wide
+    UPLOAD_DIR = Path("data/samples")
+    OUT_DIR = Path("data/processed_text")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    
     st.set_page_config(page_title="SmartRoute", layout="wide")
     st.title("SmartRoute: Email and Message Information Extraction")
     st.write("Upload your excel files, emails and messages here, and we will extract infomration.")
@@ -68,22 +86,45 @@ def main() -> None:
     #---File uploaders---
     
     # File uploader for Excel files
-    excel_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
-    # File uploader for PDF files
-    pdf_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+    user_upload_files = st.file_uploader("Upload a pdf, jpg, png, or xlsx file", type=["xlsx", "jpg", "png", "pdf"], 
+                                         accept_multiple_files=True)
     
-    if excel_file is not None:
-        st.write("Excel file uploaded successfully!")
-        # Here you can add code to process the Excel file and display results
-        
-    if pdf_file is not None:
-        st.write("PDF file uploaded successfully!")
-        # Here you can add code to process the PDF file and display results
+    if user_upload_files is not None: 
+        for uploaded_file in user_upload_files:
+            save_path = UPLOAD_DIR / uploaded_file.name
+            
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            st.success(f"Saved {uploaded_file.name} to {save_path}")
 
-    result = {
-        ""
-    }
-
+    if st.button("Run Extraction"):
+        files = sorted(UPLOAD_DIR.iterdir())
+        if not files:
+            st.warning("No files uploaded.")
+        else:
+            results = []
+            with st.spinner("Processing files..."):
+                for p in files:
+                    suffix = p.suffix.lower()
+                    try:
+                        if suffix == ".xlsx":
+                            dump_xlsx_to_txt(p, OUT_DIR)
+                            results.append((p.name, "xlsx -> ok"))
+                        elif suffix in [".png", ".jpg", ".jpeg"]:
+                            dump_image_to_txt(p, OUT_DIR)
+                            results.append((p.name, "image -> ok"))
+                        elif suffix == ".pdf":
+                            dump_pdf_to_txt(p, OUT_DIR)
+                            results.append((p.name, "pdf -> ok"))
+                        else:
+                            results.append((p.name, "skipped (unknown type)"))
+                    except Exception as e:
+                        # keep going even if this file failed
+                        results.append((p.name, f"FAILED: {e}"))
+            st.success("Extraction complete.")
+            st.write("Results:")
+            for name, status in results:
+                st.write(f"- {name}: {status}")
     #-----Dummy JSON for testing purposes-------
     dummy_json = {
     "name" : "John Doe",
