@@ -84,6 +84,15 @@ def main() -> None:
     
     
     st.set_page_config(page_title="SmartRoute", layout="wide")
+
+    # Initialize session state for uploaded files and active file selection
+    if "files" not in st.session_state:
+        st.session_state["files"] = {} 
+
+    # Which file is selected
+    if "active_file_id" not in st.session_state:
+        st.session_state["active_file_id"] = None
+
     st.title("SmartRoute: Email and Message Information Extraction")
     st.write("Upload your excel files, emails and messages here, and we will extract infomration.")
 
@@ -100,6 +109,24 @@ def main() -> None:
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             st.success(f"Saved {uploaded_file.name} to {save_path}")
+    
+    #Chance method for register uploaded files
+    if user_upload_files:
+        for f in user_upload_files:
+            file_id = f"{f.name}-{f.size}"  # simple stable key for hackathon
+
+            if file_id not in st.session_state["files"]:
+                st.session_state["files"][file_id] = {
+                    "meta": {"name": f.name, "type": f.type, "size": f.size},
+                    "record": None,  # will fill after extraction/backend later
+                    "ui": {"urgency": None, "routed_to": None, "confirmed": False},
+                }
+
+    # ---pick a default active file---
+    # checks to see if the dict of files is not empty and if there is no active file selected, 
+    # then it selects the first file in the dict as the active file.
+    if st.session_state["active_file_id"] is None and len(st.session_state["files"]) > 0: 
+        st.session_state["active_file_id"] = next(iter(st.session_state["files"]))
 
     if st.button("Run Extraction"):
         files = sorted(UPLOAD_DIR.iterdir())
@@ -129,6 +156,24 @@ def main() -> None:
             st.write("Results:")
             for name, status in results:
                 st.write(f"- {name}: {status}")
+    
+    
+    # st.session_state[user_upload_files] = {
+    #      "<file_id>": {
+    #           "meta":{"name": "...", "type": "...", "size": ...},
+    #            "ui": {
+    #                 "urgency": None,
+    #                 "routed_to": None,
+    #                 #TODO: add confirmed (user confirms)
+    #                 "confirmed": False
+    #            },
+            
+    #      },
+        
+    # }
+
+    # st.session_state["active_file_id"] = "<file_id>"
+
     #-----Dummy JSON for testing purposes-------
     dummy_json = {
     "name" : "John Doe",
@@ -196,6 +241,28 @@ def main() -> None:
 
     st.header("Routing")
 
+    # List all uploaded files and allow user to select which one to review
+    file_ids = list(st.session_state["files"].keys())
+
+    if not file_ids:
+        st.info("Upload at least one file to review routing.")
+        return  # stops the rest of main() so we don't access active_file_id
+    
+    if st.session_state["active_file_id"] not in st.session_state["files"]:
+        st.session_state["active_file_id"] = file_ids[0]
+
+    if file_ids:
+        st.session_state["active_file_id"] = st.selectbox(
+            "Select a file to review",
+            options=file_ids,
+            format_func=lambda fid: st.session_state["files"][fid]["meta"]["name"],
+        )
+
+    # Get the active file's record and UI state
+    active = st.session_state["files"][st.session_state["active_file_id"]]
+    ui = active["ui"]
+    meta = active["meta"]
+
     if human_review_required:
             st.markdown(
             """
@@ -255,6 +322,9 @@ def main() -> None:
     URGENCY_LABELS = {"critical":"Critical", "high":"High", "medium":"Medium", "low":"Low"}
 
     default_urgency = record["urgency"]
+
+
+
     choice = st.selectbox(
         label="Urgency (you can override)",
         options=URGENCY_OPTIONS,
