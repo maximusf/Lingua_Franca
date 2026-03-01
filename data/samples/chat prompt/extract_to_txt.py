@@ -4,15 +4,9 @@ from pathlib import Path
 from openpyxl import load_workbook
 from PIL import Image
 from pypdf import PdfReader
-import shutil
 import pytesseract
 
-# Auto-detect tesseract: use PATH lookup, fall back to common locations
-_tesseract_path = shutil.which("tesseract")
-if _tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
-elif Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe").exists():
-    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 import zipfile
 from pathlib import Path

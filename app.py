@@ -8,63 +8,16 @@ from PIL import Image
 logo_path = "./assets/gridstorm-logo.png"
 
 from pathlib import Path
+from backend.extractor import extract_fields
+from backend.validator import validate
+from backend.urgency import apply_routing
+
 
 from backend.extract_to_txt import (
     dump_image_to_txt,
     dump_xlsx_to_txt,
     dump_pdf_to_txt
 )
-
-
-# CSS styling for the app
-def load_css():
-    st.markdown("""
-    <style>
-    
-    /* Page background */
-    .stApp {
-        background-color: ;
-    }
-
-    /* Center titles */
-    h1, h2, h3 {
-        text-align: center;
-    }
-                
-    img {
-        align-self: center;
-    }
-
-    /* Custom card style */
-    .card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-
-    /* Routing section highlight */
-    .routing-box {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-def center_image(image_source, width=None):
-    st.markdown(
-        f"""
-        <div style="display: flex; justify-content: center;">
-            <img src="{image_source}" width="{width}">
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-load_css()
 
 
 def get_record_for_ui(raw_input: str) -> dict:
@@ -186,46 +139,85 @@ def main() -> None:
             st.warning("No files uploaded.")
         else:
             results = []
-            with st.spinner("Processing files..."):
+            extracted_records = []  # list of tuples (filename, record_dict or error_str)
+            with st.spinner("Running extraction and calling Ollama..."):
+                # 1) run your dump_* functions (this is what you already do)
                 for p in files:
                     suffix = p.suffix.lower()
                     try:
                         if suffix == ".xlsx":
                             dump_xlsx_to_txt(p, OUT_DIR)
-                            results.append((p.name, "xlsx -> ok"))
+                            results.append((p.name, "xlsx -> dumped"))
                         elif suffix in [".png", ".jpg", ".jpeg"]:
                             dump_image_to_txt(p, OUT_DIR)
-                            results.append((p.name, "image -> ok"))
+                            results.append((p.name, "image -> dumped"))
                         elif suffix == ".pdf":
                             dump_pdf_to_txt(p, OUT_DIR)
-                            results.append((p.name, "pdf -> ok"))
+                            results.append((p.name, "pdf -> dumped"))
                         else:
                             results.append((p.name, "skipped (unknown type)"))
                     except Exception as e:
-                        # keep going even if this file failed
-                        results.append((p.name, f"FAILED: {e}"))
-            st.success("Extraction complete.")
-            st.write("Results:")
+                        results.append((p.name, f"DUMP FAILED: {e}"))
+
+                # 2) For each produced .txt in OUT_DIR, run Ollama via extractor.extract_fields
+                txt_files = sorted(OUT_DIR.glob("*.txt"))
+                for t in txt_files:
+                    try:
+                        raw_text = t.read_text(encoding="utf-8")
+                    except Exception as e:
+                        extracted_records.append((t.name, f"READ TXT FAILED: {e}"))
+                        continue
+
+                    # Call the Ollama-backed extractor
+                    try:
+                        llm_extraction = extract_fields(raw_text)  # returns LLMExtraction object per backend/extractor.py
+                        # If it's a Pydantic model or dataclass, convert to dict for display
+                        try:
+                            record_dict = llm_extraction.model_dump(mode="json")  # if Pydantic v2 / pydantic-core
+                        except Exception:
+                            # fallback: try dict()
+                            record_dict = llm_extraction.__dict__ if hasattr(llm_extraction, "__dict__") else dict(llm_extraction)
+                        # Optionally validate / route
+                        try:
+                            validated = validate(llm_extraction, raw_text)
+                            routed = apply_routing(validated)
+                            # routed may be a pydantic model; convert for display
+                            try:
+                                routed_dict = routed.model_dump(mode="json")
+                            except Exception:
+                                routed_dict = getattr(routed, "__dict__", routed)
+                        except Exception:
+                            # if you don't have validator/urgency set up, skip silently
+                            routed_dict = record_dict
+
+                        extracted_records.append((t.name, routed_dict))
+                        results.append((t.name, "extraction -> ok"))
+                    except ConnectionError as ce:
+                        extracted_records.append((t.name, f"OLLM ERROR: {ce}"))
+                        results.append((t.name, f"extraction -> failed (Ollama connection)"))
+                    except ValueError as ve:
+                        extracted_records.append((t.name, f"EXTRACTION ERROR: {ve}"))
+                        results.append((t.name, f"extraction -> failed (parse/validation)"))
+                    except Exception as e:
+                        extracted_records.append((t.name, f"UNEXPECTED ERROR: {e}"))
+                        results.append((t.name, f"extraction -> failed ({e})"))
+
+            # end spinner
+            st.success("Extraction + LLM pass finished.")
+            st.write("Dump results:")
             for name, status in results:
                 st.write(f"- {name}: {status}")
-    
-    
-    # st.session_state[user_upload_files] = {
-    #      "<file_id>": {
-    #           "meta":{"name": "...", "type": "...", "size": ...},
-    #            "ui": {
-    #                 "urgency": None,
-    #                 "routed_to": None,
-    #                 #TODO: add confirmed (user confirms)
-    #                 "confirmed": False
-    #            },
-            
-    #      },
-        
-    # }
 
-    # st.session_state["active_file_id"] = "<file_id>"
-
+            # show extracted records (first one prominently; list others)
+            if extracted_records:
+                st.divider()
+                st.header("LLM-extracted Records (from processed .txt files)")
+                for fname, record in extracted_records:
+                    st.subheader(fname)
+                    if isinstance(record, str):
+                        st.error(record)
+                    else:
+                        st.json(record)
     #-----Dummy JSON for testing purposes-------
     dummy_json = {
     "name" : "John Doe",
