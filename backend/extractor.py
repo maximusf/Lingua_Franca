@@ -31,24 +31,25 @@ Rules:
 - Output each field on its own line in exact format:  field_name: value
 - If a field is not found in the document, write ONLY the word null:  field_name: null
 - NEVER add parenthetical notes like "(not provided)" — just write null
-- For "result", normalize to one of: PASS, FAIL, APPROVED, REJECTED, PENDING, or null if unclear.
-- Use the raw permit type string from the document for "permit_category" (e.g. "Residential", "Mobile Home").
+- For "result", normalize to one of: PASS, FAIL, APPROVED, REJECTED, RELEASED, PENDING, or null if unclear.
+- For "permit_category", classify as one of: residential, commercial, mobile_home, temp_power, accessory_structure, or unknown.
+- This text may come from OCR on scanned documents. If a value looks garbled, corrupted, or unreadable (random letters, nonsense strings), write null instead of the garbled text.
 - Every field must appear exactly once in your output.
 - Do not add any fields, explanations, or commentary.
 
 Fields:
 permit_number: <permit or application number>
 inspection_type: <type of inspection performed>
-result: <PASS | FAIL | APPROVED | REJECTED | PENDING | null>
-permit_category: <raw permit type from document>
-site_address: <property address>
+result: <PASS | FAIL | APPROVED | REJECTED | RELEASED | PENDING | null>
+permit_category: <residential | commercial | mobile_home | temp_power | accessory_structure | unknown>
+site_address: <full property street address — if garbled or unreadable, write null>
 county: <county name>
 inspection_date: <date of inspection>
-description: <brief description or notes>
-contact_name: <applicant or contact name>
-contact_phone: <phone number>
-contact_email: <email address>
-inspector: <inspector name>
+description: <one-sentence summary of what this document is about, e.g. "Residential gas test inspection passed for Great Southern Homes">
+contact_name: <applicant or contact name — if garbled or unreadable, write null>
+contact_phone: <phone number — if garbled or unreadable, write null>
+contact_email: <email address — if garbled or unreadable, write null>
+inspector: <inspector name — if garbled or unreadable, write null>
 
 DOCUMENT TEXT:
 <<<

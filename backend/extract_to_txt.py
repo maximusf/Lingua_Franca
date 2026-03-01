@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+import cv2
+import numpy as np
 from openpyxl import load_workbook
 from PIL import Image
 from pypdf import PdfReader
@@ -92,11 +94,27 @@ def dump_xlsx_to_txt(xlsx_path: Path, out_dir: Path) -> None:
     print(f"[XLSX] Wrote: {out_path}")
 
 
+def _preprocess_for_ocr(image_path: Path) -> np.ndarray:
+    """Preprocess image for better OCR: upscale, grayscale, Otsu threshold."""
+    img = cv2.imread(str(image_path))
+
+    # Upscale 2x for better text recognition on small or low-res images
+    img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Otsu's thresholding — automatically finds best binarization level
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    return thresh
+
+
 def dump_image_to_txt(image_path: Path, out_dir: Path) -> None:
     out_path = out_dir / f"{safe_name(image_path.stem)}.txt"
 
-    img = Image.open(image_path).convert("RGB")
-    text = pytesseract.image_to_string(img)
+    processed = _preprocess_for_ocr(image_path)
+    text = pytesseract.image_to_string(processed)
 
     with out_path.open("w", encoding="utf-8") as f:
         f.write(f"FILE: {image_path.name}\n")
