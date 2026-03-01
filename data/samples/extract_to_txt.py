@@ -77,7 +77,7 @@ def main():
     in_dir = Path(args.input_dir).expanduser().resolve()
     out_dir = Path(args.out).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-
+    
     # Set Tesseract path explicitly (Windows-safe)
     pytesseract.pytesseract.tesseract_cmd = args.tesseract
 
