@@ -3,6 +3,9 @@
 # and then pass them to the backend for processing.
 import json
 import streamlit as st
+from PIL import Image
+
+logo_path = "./assets/gridstorm-logo.png"
 
 from pathlib import Path
 
@@ -13,7 +16,55 @@ from backend.extract_to_txt import (
 )
 
 
+# CSS styling for the app
+def load_css():
+    st.markdown("""
+    <style>
+    
+    /* Page background */
+    .stApp {
+        background-color: ;
+    }
 
+    /* Center titles */
+    h1, h2, h3 {
+        text-align: center;
+    }
+                
+    img {
+        align-self: center;
+    }
+
+    /* Custom card style */
+    .card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    /* Routing section highlight */
+    .routing-box {
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+def center_image(image_source, width=None):
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: center;">
+            <img src="{image_source}" width="{width}">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+load_css()
 
 
 def get_record_for_ui(raw_input: str) -> dict:
@@ -93,8 +144,9 @@ def main() -> None:
     if "active_file_id" not in st.session_state:
         st.session_state["active_file_id"] = None
 
+    st.image(logo_path, width=150)
     st.title("SmartRoute: Email and Message Information Extraction")
-    st.write("Upload your excel files, emails and messages here, and we will extract infomration.")
+    st.subheader("Upload your excel files, emails and messages here, and we will extract infomration.")
 
     #---File uploaders---
     
@@ -190,7 +242,8 @@ def main() -> None:
 
     }
 
-    
+    st.divider()
+
     #Columns to display extracted info and structured JSON side by side
     col_left, col_right = st.columns(2, gap="small")
 
@@ -205,7 +258,7 @@ def main() -> None:
         st.json(record)
         
        
-
+   
     #-----Routing-------
         
     st.divider()
@@ -239,111 +292,157 @@ def main() -> None:
          
     }
 
-    st.header("Routing")
+    st.markdown("""
+        <style>
+            /* Style only the bordered container that contains our routing marker */
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.routing-marker) {
+                background: #eef2ff;              /* light indigo */
+                border: 1px solid #c7d2fe;        /* indigo border */
+                border-radius: 14px;
+                padding: 14px 16px;
+            }
+
+            /* Optional: tighten spacing inside the card */
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.routing-marker) .block-container {
+                padding-top: 0;
+            }
+
+            /* Optional: make the Routing header align nicer inside card */
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.routing-marker) h2,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.routing-marker) h3 {
+                margin-top: 0.2rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+
+
+    
+
+    # st.markdown(
+    # """
+    # <div style="background:#eef2ff;padding:12px 14px;border-radius:12px;font-weight:800;margin:12px 0;">
+    #     Routing <span title="Urgency = severity, Confidence = model certainty, Route = destination queue." style="cursor:help;color:#666;">ⓘ</span>
+    # </div>
+    # """,
+    # unsafe_allow_html=True
+    # )
+
+    
 
     # List all uploaded files and allow user to select which one to review
-    file_ids = list(st.session_state["files"].keys())
+    with st.container(border=True):
 
-    if not file_ids:
-        st.info("Upload at least one file to review routing.")
-        return  # stops the rest of main() so we don't access active_file_id
-    
-    if st.session_state["active_file_id"] not in st.session_state["files"]:
-        st.session_state["active_file_id"] = file_ids[0]
+        st.markdown('<span class="routing-marker" style="display:none;"></span>', unsafe_allow_html=True)
 
-    if file_ids:
-        st.session_state["active_file_id"] = st.selectbox(
-            "Select a file to review",
-            options=file_ids,
-            format_func=lambda fid: st.session_state["files"][fid]["meta"]["name"],
+        st.header("Routing")
+
+        file_ids = list(st.session_state["files"].keys())
+
+        if not file_ids:
+            st.info("Upload at least one file to review routing.")
+            return  # stops the rest of main() so we don't access active_file_id
+        
+        if st.session_state["active_file_id"] not in st.session_state["files"]:
+            st.session_state["active_file_id"] = file_ids[0]
+
+        if file_ids:
+            st.session_state["active_file_id"] = st.selectbox(
+                "Select a file to review",
+                options=file_ids,
+                format_func=lambda fid: st.session_state["files"][fid]["meta"]["name"],
+            )
+
+        # Get the active file's record and UI state
+        active = st.session_state["files"][st.session_state["active_file_id"]]
+        ui = active["ui"]
+        meta = active["meta"]
+
+        if human_review_required:
+                st.markdown(
+                """
+                <div style="
+                    background-color:#ff4b4b;
+                    color:white;
+                    padding:12px;
+                    border-radius:8px;
+                    font-weight:800;
+                    text-align:center;
+                    margin-bottom:10px;
+                ">
+                    ! HUMAN REVIEW REQUIRED
+                </div>
+                """,
+                unsafe_allow_html=True,
         )
 
-    # Get the active file's record and UI state
-    active = st.session_state["files"][st.session_state["active_file_id"]]
-    ui = active["ui"]
-    meta = active["meta"]
+        urgencyScore = record["urgency_score"]
 
-    if human_review_required:
-            st.markdown(
-            """
-            <div style="
-                background-color:#ff4b4b;
-                color:white;
-                padding:12px;
-                border-radius:8px;
-                font-weight:800;
-                text-align:center;
-                margin-bottom:10px;
-            ">
-                ! HUMAN REVIEW REQUIRED
-            </div>
-            """,
-            unsafe_allow_html=True,
-    )
+        #Horizontal Routing Role
+        r1, r2, r3 = st.columns([1, 1, 2])
 
-    urgencyScore = record["urgency_score"]
+        with r1:
+                st.metric (
+                label = "Urgency",
+                value = record["urgency"],
+                delta = URGENCY_COLORS.get(record["urgency"], "#7f8c8d"),
+                help = f"Predicted urgency based on extracted text. Override if the model is incorrect. Score: {record['urgency_score']} / 5"
+                )
+            # st.text("Urgency")
+            # render_badge(record["urgency"], URGENCY_COLORS.get(record["urgency"], "#7f8c8d"))
+            # st.caption(f"Score: {record['urgency_score']} / 5")
 
-    #Horizontal Routing Role
-    r1, r2, r3 = st.columns([1, 1, 2])
+        with r2:
+            #Creates the ? for the user to see what confidence means
+            st.metric(
+                label="Confidence",
+                value=f"{confidence:.2f}",
+                help="0–1 certainty score. Below 0.70 triggers human review."
+            )
 
-    with r1:
-         st.metric (
-            label = "Urgency",
-            value = record["urgency"],
-            delta = URGENCY_COLORS.get(record["urgency"], "#7f8c8d"),
-            help = f"Predicted urgency based on extracted text. Override if the model is incorrect. Score: {record['urgency_score']} / 5"
-         )
-        # st.text("Urgency")
-        # render_badge(record["urgency"], URGENCY_COLORS.get(record["urgency"], "#7f8c8d"))
-        # st.caption(f"Score: {record['urgency_score']} / 5")
+        with r3:
+            st.metric (
+                label = "Routed To",
+                value = ROUTE_LABELS.get(record["routed_to"], record["routed_to"]),
+                help = "The team or department the record is routed to."
+            )
+            # st.caption("Routing Destination")
+            # st.write(ROUTE_LABELS.get(record["routed_to"], record["routed_to"]))
 
-    with r2:
-        #Creates the ? for the user to see what confidence means
-        st.metric(
-            label="Confidence",
-            value=f"{confidence:.2f}",
-            help="0–1 certainty score. Below 0.70 triggers human review."
+
+
+        # ----- User selection (override) -----
+        # user override urgency (always allowed)
+        URGENCY_OPTIONS = ["critical", "high", "medium", "low"]
+        URGENCY_LABELS = {"critical":"Critical", "high":"High", "medium":"Medium", "low":"Low"}
+
+        default_urgency = record["urgency"]
+
+
+
+        choice = st.selectbox(
+            label="Urgency (you can override)",
+            options=URGENCY_OPTIONS,
+            index=URGENCY_OPTIONS.index(record["urgency"]),
+            help="Predicted urgency based on extracted text. Override if the model is incorrect."
         )
 
-    with r3:
-        st.metric (
-            label = "Routed To",
-            value = ROUTE_LABELS.get(record["routed_to"], record["routed_to"]),
-            help = "The team or department the record is routed to."
-        )
-        # st.caption("Routing Destination")
-        # st.write(ROUTE_LABELS.get(record["routed_to"], record["routed_to"]))
+        record["user_selected_urgency"] = choice
+        record["user_override"] = (choice != record["urgency"])
 
-
-
-    # ----- User selection (override) -----
-    # user override urgency (always allowed)
-    URGENCY_OPTIONS = ["critical", "high", "medium", "low"]
-    URGENCY_LABELS = {"critical":"Critical", "high":"High", "medium":"Medium", "low":"Low"}
-
-    default_urgency = record["urgency"]
-
-
-
-    choice = st.selectbox(
-        label="Urgency (you can override)",
-        options=URGENCY_OPTIONS,
-        index=URGENCY_OPTIONS.index(record["urgency"]),
-        help="Predicted urgency based on extracted text. Override if the model is incorrect."
-    )
-
-    record["user_selected_urgency"] = choice
-    record["user_override"] = (choice != record["urgency"])
-
-    # allow routing override ONLY if human review
-    if human_review_required:
-        route_choice = st.selectbox(
-            "Route to (required for human review)",
-            options=list(ROUTE_LABELS.keys()),
-            index=list(ROUTE_LABELS.keys()).index(record["routed_to"]),
-            format_func=lambda x: ROUTE_LABELS[x],
-        )
+        # allow routing override ONLY if human review
+        if human_review_required:
+            route_choice = st.selectbox(
+                "Route to (required for human review)",
+                options=list(ROUTE_LABELS.keys()),
+                index=list(ROUTE_LABELS.keys()).index(record["routed_to"]),
+                format_func=lambda x: ROUTE_LABELS[x],
+            )
         record["routed_to"] = route_choice
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 
 
         
